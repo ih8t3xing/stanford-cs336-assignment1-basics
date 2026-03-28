@@ -9,8 +9,8 @@ from cs336_basics.train_bpe import train_bpe
 
 
 def main():
-    input_path = "../data/TinyStoriesV2-GPT4-train.txt"
-    output_dir = "../output/tinystories_bpe"
+    input_path = "../data/TinyStoriesV2-GPT4-valid.txt"
+    output_dir = "../output/tinystories_bpe_valid"
     os.makedirs(output_dir, exist_ok=True)
 
     vocab_size = 10000
