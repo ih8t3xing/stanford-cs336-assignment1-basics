@@ -10,7 +10,7 @@ def get_batch(
     # print(f"starts: {starts}")
     x = np.stack([dataset[i : i + context_length] for i in starts])
     y = np.stack([dataset[i + 1 : i + context_length + 1] for i in starts])
-    x = torch.tensor(x, dtype=torch.long, device=device)
-    y = torch.tensor(y, dtype=torch.long, device=device)
+    x = torch.tensor(x.astype(np.int32), dtype=torch.long, device=device)
+    y = torch.tensor(y.astype(np.int32), dtype=torch.long, device=device)
     # print(f"x: {x.shape}, y: {y.shape}")
     return x, y

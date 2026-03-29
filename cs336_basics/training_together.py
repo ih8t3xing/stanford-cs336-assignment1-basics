@@ -3,8 +3,8 @@ Training script that puts together all components for training a TransformerLM.
 
 Usage:
     python -m cs336_basics.training_together \
-        --train_data data/train.npy \
-        --val_data data/val.npy \
+        --train_data data/tinystories_valid/train.npy \
+        --val_data data/tinystories_valid/val.npy \
         --vocab_size 10000 \
         --checkpoint_dir output/checkpoints
 """
