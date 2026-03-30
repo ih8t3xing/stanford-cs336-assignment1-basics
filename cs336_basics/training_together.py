@@ -26,6 +26,7 @@ from cs336_basics.cross_entropy import cross_entropy
 from cs336_basics.data_loading import get_batch
 from cs336_basics.gradient_clipping import gradient_clipping
 from cs336_basics.learning_rate_schedule import get_lr_cosine_schedule
+from tqdm import tqdm
 from cs336_basics.tokenizer import Tokenizer
 from cs336_basics.transformer_lm import TransformerLM
 
@@ -116,7 +117,8 @@ def train(args):
     t0 = time.time()
     train_start_time = time.time()
 
-    for step in range(start_iter, args.max_iters):
+    pbar = tqdm(range(start_iter, args.max_iters), initial=start_iter, total=args.max_iters, desc="Training")
+    for step in pbar:
         # Set learning rate
         lr = get_lr_cosine_schedule(
             t=step,
@@ -138,13 +140,15 @@ def train(args):
         gradient_clipping(model.parameters(), args.grad_clip)
         optimizer.step()
 
+        pbar.set_postfix(loss=f"{loss.item():.4f}", lr=f"{lr:.2e}")
+
         # Logging
         if step % args.log_interval == 0:
             elapsed = time.time() - t0
             wallclock = time.time() - train_start_time
             tokens_per_sec = args.log_interval * args.batch_size * args.context_length / max(elapsed, 1e-9)
-            print(
-                f"step {step:6d} | loss {loss.item():.4f} | lr {lr:.2e} | "
+            tqdm.write(
+                f"step {step:6d}/{args.max_iters} | loss {loss.item():.4f} | lr {lr:.2e} | "
                 f"{tokens_per_sec:.0f} tok/s"
             )
             wandb.log({"train/loss": loss.item(), "train/lr": lr, "train/tokens_per_sec": tokens_per_sec, "wallclock": wallclock}, step=step)
@@ -154,14 +158,14 @@ def train(args):
         if step % args.val_interval == 0:
             val_loss = estimate_val_loss(model, val_data, args.batch_size, args.context_length, device)
             wallclock = time.time() - train_start_time
-            print(f"  --> val loss {val_loss:.4f} at step {step}")
+            tqdm.write(f"  --> val loss {val_loss:.4f} at step {step}")
             wandb.log({"val/loss": val_loss, "wallclock": wallclock}, step=step)
 
         # Checkpointing
         if step > 0 and step % args.checkpoint_interval == 0:
             ckpt_path = os.path.join(args.checkpoint_dir, f"ckpt_{step:07d}.pt")
             save_checkpoint(model, optimizer, step, ckpt_path)
-            print(f"  --> saved checkpoint: {ckpt_path}")
+            tqdm.write(f"  --> saved checkpoint: {ckpt_path}")
 
     # Final checkpoint
     ckpt_path = os.path.join(args.checkpoint_dir, f"ckpt_{args.max_iters:07d}_final.pt")
