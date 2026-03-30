@@ -2,14 +2,13 @@
 Training script that puts together all components for training a TransformerLM.
 
 Usage:
-    python -m cs336_basics.training_together \
-        --train_data data/tinystories_valid/train.txt \
-        --val_data data/tinystories_valid/val.txt \
-        --vocab_filepath output/tinystories_bpe/vocab.txt \
-        --merges_filepath output/tinystories_bpe/merges.txt \
+    uv run python -m cs336_basics.training_together \
+        --train_data data/tinystories/TinyStoriesV2-GPT4-train.txt \
+        --val_data data/tinystories/TinyStoriesV2-GPT4-valid.txt \
+        --vocab_filepath output/tinystories_bpe/vocab.json \
+        --merges_filepath output/tinystories_bpe/merges.json \
         --vocab_size 10000 \
-        --max_iters 200 \
-        --checkpoint_dir output/checkpoints/tinystories_valid/
+        --checkpoint_dir output/checkpoints/tinystories/
 """
 
 import argparse
@@ -68,10 +67,22 @@ def train(args):
     )
 
     # Tokenize txt files to npy if needed, then load
-    tokenizer = Tokenizer.from_files(args.vocab_filepath, args.merges_filepath)
+    # Auto-swap .txt -> .json if the user passed the plain-text variants
+    def _to_json(path: str) -> str:
+        if path.endswith(".txt"):
+            json_path = path[:-4] + ".json"
+            if os.path.exists(json_path):
+                print(f"Note: using {json_path} instead of {path} (JSON required)")
+                return json_path
+        return path
+
+    tokenizer = Tokenizer.from_files(_to_json(args.vocab_filepath), _to_json(args.merges_filepath))
 
     def _load_data(txt_path: str) -> np.memmap:
-        npy_path = os.path.splitext(txt_path)[0] + ".npy"
+        basename = os.path.splitext(os.path.basename(txt_path))[0] + ".npy"
+        cache_dir = args.data_cache_dir or os.path.dirname(os.path.abspath(txt_path))
+        os.makedirs(cache_dir, exist_ok=True)
+        npy_path = os.path.join(cache_dir, basename)
         if not os.path.exists(npy_path):
             tokenize_to_npy(txt_path, tokenizer, npy_path)
         else:
@@ -182,6 +193,8 @@ def main():
     parser.add_argument("--val_data", type=str, required=True, help="Path to raw val text (.txt)")
     parser.add_argument("--vocab_filepath", type=str, required=True, help="Path to BPE vocab JSON")
     parser.add_argument("--merges_filepath", type=str, required=True, help="Path to BPE merges JSON")
+    parser.add_argument("--data_cache_dir", type=str, default=None,
+                        help="Directory to cache tokenized .npy files (default: same dir as input txt). Use /tmp or a scratch dir to avoid disk quota issues.")
 
     # Model
     parser.add_argument("--vocab_size", type=int, required=True)
