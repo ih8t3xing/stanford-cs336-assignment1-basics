@@ -23,7 +23,8 @@ import subprocess
 
 
 # Log-scale LR grid: 1e-4 to 1e-2
-SWEEP_LRS = [1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 1e-2]
+# SWEEP_LRS = [1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 1e-2]
+SWEEP_LRS = [3e-2, 1e-1, 3e-1, 1.0]  # Testing higher LRs to see divergence behavior
 
 # Short run to compare learning curves quickly
 SWEEP_ITERS = 5000

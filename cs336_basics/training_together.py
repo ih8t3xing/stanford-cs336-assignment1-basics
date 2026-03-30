@@ -102,6 +102,7 @@ def train(args):
         num_heads=args.num_heads,
         d_ff=args.d_ff,
         rope_theta=args.rope_theta,
+        use_rmsnorm=not args.no_rmsnorm,
         device=device,
     )
     num_params = sum(p.numel() for p in model.parameters())
@@ -204,6 +205,7 @@ def main():
     parser.add_argument("--num_heads", type=int, default=16)
     parser.add_argument("--d_ff", type=int, default=1344)
     parser.add_argument("--rope_theta", type=float, default=10000.0)
+    parser.add_argument("--no_rmsnorm", action="store_true", help="Remove all RMSNorms (ablation)")
 
     # Training
     parser.add_argument("--max_iters", type=int, default=40000)
