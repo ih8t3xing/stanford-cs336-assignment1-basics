@@ -22,7 +22,8 @@ import argparse
 import subprocess
 
 # Batch sizes to sweep: from 1 up to H100 memory limit (~1024 fits for this model)
-BATCH_SIZES = [1, 4, 16, 64, 128, 256, 512, 1024]
+# BATCH_SIZES = [1, 4, 16, 64, 128]
+BATCH_SIZES = [128, 64, 16, 4, 1]
 
 # Base config that the best_lr was tuned for
 BASE_BATCH_SIZE = 64
