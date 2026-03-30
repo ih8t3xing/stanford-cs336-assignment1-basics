@@ -57,11 +57,14 @@ def sweep(args):
         lr = args.best_lr * (bs / BASE_BATCH_SIZE)
         lr_min = lr / 10
 
-        # Fix total tokens: max_iters = total_tokens / (bs * context_length)
-        max_iters = max(1, TOTAL_TOKENS // (bs * CONTEXT_LENGTH))
-        val_interval = max(1, VAL_INTERVAL_TOKENS // (bs * CONTEXT_LENGTH))
-        log_interval = max(1, LOG_INTERVAL_TOKENS // (bs * CONTEXT_LENGTH))
-        warmup_iters = max(1, min(200, max_iters // 20))
+        # Fix total tokens seen across all runs for fair comparison.
+        # Clamp so small batches don't run forever and large batches get enough steps.
+        max_iters = TOTAL_TOKENS // (bs * CONTEXT_LENGTH)
+        max_iters = min(max_iters, 10_000)   # bs=1 would be 320k steps — too slow
+        max_iters = max(max_iters, 1_000)    # bs=1024 would be 312 steps — too few
+        val_interval = max(10, max_iters // 10)
+        log_interval = max(5, max_iters // 50)
+        warmup_iters = max(50, min(200, max_iters // 20))
 
         run_name = f"bs_sweep_bs{bs}"
         checkpoint_dir = f"output/checkpoints/bs_sweep/bs{bs}"
