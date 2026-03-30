@@ -134,6 +134,7 @@ def train(args):
         rope_theta=args.rope_theta,
         use_rmsnorm=not args.no_rmsnorm,
         post_norm=args.post_norm,
+        use_rope=not args.no_rope,
         device=device,
     )
     num_params = sum(p.numel() for p in model.parameters())
@@ -240,6 +241,7 @@ def main():
     parser.add_argument("--rope_theta", type=float, default=10000.0)
     parser.add_argument("--no_rmsnorm", action="store_true", help="Remove all RMSNorms (ablation)")
     parser.add_argument("--post_norm", action="store_true", help="Use post-norm instead of pre-norm")
+    parser.add_argument("--no_rope", action="store_true", help="Disable RoPE position embeddings (NoPE ablation)")
 
     # Training
     parser.add_argument("--max_iters", type=int, default=40000)

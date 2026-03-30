@@ -17,13 +17,14 @@ class TransformerLM(nn.Module):
         rope_theta: float,
         use_rmsnorm: bool = True,
         post_norm: bool = False,
+        use_rope: bool = True,
         device=None,
         dtype=None,
     ):
         super().__init__()
         self.token_embeddings = nn.Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList([
-            TransformerBlock(d_model, num_heads, d_ff, theta=rope_theta, max_seq_len=context_length, use_rmsnorm=use_rmsnorm, post_norm=post_norm, device=device, dtype=dtype)
+            TransformerBlock(d_model, num_heads, d_ff, theta=rope_theta, max_seq_len=context_length, use_rmsnorm=use_rmsnorm, post_norm=post_norm, use_rope=use_rope, device=device, dtype=dtype)
             for _ in range(num_layers)
         ])
         # post-norm blocks already normalise their output; no extra norm needed after the stack

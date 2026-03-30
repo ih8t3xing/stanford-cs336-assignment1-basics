@@ -17,19 +17,20 @@ class TransformerBlock(nn.Module):
         max_seq_len: int = 2048,
         use_rmsnorm: bool = True,
         post_norm: bool = False,
+        use_rope: bool = True,
         device=None,
         dtype=None,
     ):
         super().__init__()
         self.post_norm = post_norm
-        rope = RoPE(theta, d_model // num_heads, max_seq_len, device=device)
+        rope = RoPE(theta, d_model // num_heads, max_seq_len, device=device) if use_rope else None
         if use_rmsnorm:
             self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
             self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
         else:
             self.ln1 = nn.Identity()
             self.ln2 = nn.Identity()
-        self.attn = CausalMultiHeadSelfAttention(d_model, num_heads, rope=rope, device=device, dtype=dtype)
+        self.attn = CausalMultiHeadSelfAttention(d_model, num_heads, rope=rope, device=device, dtype=dtype)  # rope=None => NoPE
         self.ffn = PositionwiseFeedForward(d_model, d_ff=d_ff, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

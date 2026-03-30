@@ -1,0 +1,97 @@
+"""
+Position embedding ablation: RoPE vs NoPE.
+
+Runs:
+  1. RoPE (baseline) at the optimal LR
+  2. NoPE at the same optimal LR
+
+Usage:
+    python scripts/pos_emb_ablation.py \
+        --train_data data/tinystories/TinyStoriesV2-GPT4-train.txt \
+        --val_data data/tinystories/TinyStoriesV2-GPT4-valid.txt \
+        --vocab_filepath output/tinystories_bpe/vocab.json \
+        --merges_filepath output/tinystories_bpe/merges.json \
+        --optimal_lr 3e-3
+"""
+
+import argparse
+import subprocess
+
+
+SWEEP_ITERS = 2000
+SWEEP_VAL_INTERVAL = 200
+SWEEP_LOG_INTERVAL = 50
+SWEEP_CKPT_INTERVAL = 1000
+
+MODEL_DEFAULTS = [
+    "--vocab_size", "10000",
+    "--context_length", "256",
+    "--d_model", "512",
+    "--num_layers", "4",
+    "--num_heads", "16",
+    "--d_ff", "1344",
+    "--batch_size", "64",
+    "--weight_decay", "0.1",
+    "--grad_clip", "1.0",
+]
+
+
+def build_cmd(extra_args):
+    return ["uv", "run", "python", "-m", "cs336_basics.training_together"] + extra_args
+
+
+def run_experiment(lr, tag, args, no_rope=False):
+    lr_min = lr / 10
+    run_name = f"pos_emb_ablation_{tag}_lr{lr:.0e}"
+    checkpoint_dir = f"output/checkpoints/pos_emb_ablation/{tag}_lr{lr:.0e}"
+    extra = [
+        "--train_data", args.train_data,
+        "--val_data", args.val_data,
+        "--vocab_filepath", args.vocab_filepath,
+        "--merges_filepath", args.merges_filepath,
+        "--data_cache_dir", args.data_cache_dir,
+        "--lr_max", str(lr),
+        "--lr_min", str(lr_min),
+        "--max_iters", str(SWEEP_ITERS),
+        "--warmup_iters", "200",
+        "--val_interval", str(SWEEP_VAL_INTERVAL),
+        "--log_interval", str(SWEEP_LOG_INTERVAL),
+        "--checkpoint_interval", str(SWEEP_CKPT_INTERVAL),
+        "--checkpoint_dir", checkpoint_dir,
+        "--wandb_project", args.wandb_project,
+        "--wandb_run_name", run_name,
+    ] + MODEL_DEFAULTS
+
+    if no_rope:
+        extra.append("--no_rope")
+
+    cmd = build_cmd(extra)
+    print(f"\n[{tag}] lr={lr:.0e}  cmd:\n  {' '.join(cmd)}")
+    if not args.dry_run:
+        subprocess.run(cmd, check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="RoPE vs NoPE ablation")
+    parser.add_argument("--train_data", required=True)
+    parser.add_argument("--val_data", required=True)
+    parser.add_argument("--vocab_filepath", required=True)
+    parser.add_argument("--merges_filepath", required=True)
+    parser.add_argument("--data_cache_dir", default="/tmp/ts_cache")
+    parser.add_argument("--optimal_lr", type=float, default=3e-3,
+                        help="Previously optimal LR")
+    parser.add_argument("--wandb_project", default="cs336-pos-emb-ablation")
+    parser.add_argument("--dry_run", action="store_true")
+    args = parser.parse_args()
+
+    print("=== Run 1: RoPE (baseline) at optimal LR ===")
+    run_experiment(args.optimal_lr, "rope", args, no_rope=False)
+
+    print("\n=== Run 2: NoPE at optimal LR ===")
+    run_experiment(args.optimal_lr, "nope", args, no_rope=True)
+
+    print("\nAblation complete. Compare runs in W&B under project:", args.wandb_project)
+
+
+if __name__ == "__main__":
+    main()
