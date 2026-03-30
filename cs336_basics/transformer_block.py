@@ -18,6 +18,7 @@ class TransformerBlock(nn.Module):
         use_rmsnorm: bool = True,
         post_norm: bool = False,
         use_rope: bool = True,
+        use_swiglu: bool = True,
         device=None,
         dtype=None,
     ):
@@ -31,7 +32,7 @@ class TransformerBlock(nn.Module):
             self.ln1 = nn.Identity()
             self.ln2 = nn.Identity()
         self.attn = CausalMultiHeadSelfAttention(d_model, num_heads, rope=rope, device=device, dtype=dtype)  # rope=None => NoPE
-        self.ffn = PositionwiseFeedForward(d_model, d_ff=d_ff, device=device, dtype=dtype)
+        self.ffn = PositionwiseFeedForward(d_model, d_ff=d_ff, use_swiglu=use_swiglu, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
