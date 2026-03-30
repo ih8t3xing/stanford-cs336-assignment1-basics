@@ -20,7 +20,6 @@ Usage (Phase 2 full run with best LR):
 
 import argparse
 import subprocess
-import sys
 
 
 # Log-scale LR grid: 1e-4 to 1e-2
@@ -51,7 +50,7 @@ MODEL_DEFAULTS = [
 
 
 def build_cmd(extra_args: list[str]) -> list[str]:
-    return [sys.executable, "-m", "cs336_basics.training_together"] + extra_args
+    return ["uv", "run", "python", "-m", "cs336_basics.training_together"] + extra_args
 
 
 def sweep(args):
