@@ -3,10 +3,13 @@ Training script that puts together all components for training a TransformerLM.
 
 Usage:
     python -m cs336_basics.training_together \
-        --train_data data/tinystories_valid/train.npy \
-        --val_data data/tinystories_valid/val.npy \
+        --train_data data/tinystories_valid/train.txt \
+        --val_data data/tinystories_valid/val.txt \
+        --vocab_filepath output/tinystories_bpe/vocab.txt \
+        --merges_filepath output/tinystories_bpe/merges.txt \
         --vocab_size 10000 \
-        --checkpoint_dir output/checkpoints
+        --max_iters 200 \
+        --checkpoint_dir output/checkpoints/tinystories_valid/
 """
 
 import argparse
@@ -23,7 +26,19 @@ from cs336_basics.cross_entropy import cross_entropy
 from cs336_basics.data_loading import get_batch
 from cs336_basics.gradient_clipping import gradient_clipping
 from cs336_basics.learning_rate_schedule import get_lr_cosine_schedule
+from cs336_basics.tokenizer import Tokenizer
 from cs336_basics.transformer_lm import TransformerLM
+
+
+def tokenize_to_npy(txt_path: str, tokenizer: Tokenizer, npy_path: str) -> np.memmap:
+    """Tokenize a txt file and save as uint16 npy, return memmap."""
+    print(f"Tokenizing {txt_path} -> {npy_path} ...")
+    with open(txt_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    ids = list(tokenizer.encode_iterable(lines))
+    arr = np.array(ids, dtype=np.uint16)
+    np.save(npy_path, arr)
+    print(f"  Saved {len(arr):,} tokens to {npy_path}")
 
 
 def estimate_val_loss(model, val_data, batch_size, context_length, device, num_batches=20):
@@ -51,9 +66,19 @@ def train(args):
         config=vars(args),
     )
 
-    # Load datasets with memmap for memory efficiency
-    train_data = np.memmap(args.train_data, dtype=np.uint16, mode="r")
-    val_data = np.memmap(args.val_data, dtype=np.uint16, mode="r")
+    # Tokenize txt files to npy if needed, then load
+    tokenizer = Tokenizer.from_files(args.vocab_filepath, args.merges_filepath)
+
+    def _load_data(txt_path: str) -> np.memmap:
+        npy_path = os.path.splitext(txt_path)[0] + ".npy"
+        if not os.path.exists(npy_path):
+            tokenize_to_npy(txt_path, tokenizer, npy_path)
+        else:
+            print(f"Found cached {npy_path}, skipping tokenization.")
+        return np.memmap(npy_path, dtype=np.uint16, mode="r")
+
+    train_data = _load_data(args.train_data)
+    val_data = _load_data(args.val_data)
     print(f"Train tokens: {len(train_data):,}  Val tokens: {len(val_data):,}")
 
     # Build model
@@ -149,8 +174,10 @@ def main():
     parser = argparse.ArgumentParser(description="Train a TransformerLM")
 
     # Data
-    parser.add_argument("--train_data", type=str, required=True, help="Path to tokenized train data (.npy)")
-    parser.add_argument("--val_data", type=str, required=True, help="Path to tokenized val data (.npy)")
+    parser.add_argument("--train_data", type=str, required=True, help="Path to raw train text (.txt)")
+    parser.add_argument("--val_data", type=str, required=True, help="Path to raw val text (.txt)")
+    parser.add_argument("--vocab_filepath", type=str, required=True, help="Path to BPE vocab JSON")
+    parser.add_argument("--merges_filepath", type=str, required=True, help="Path to BPE merges JSON")
 
     # Model
     parser.add_argument("--vocab_size", type=int, required=True)
