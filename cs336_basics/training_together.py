@@ -90,6 +90,9 @@ def train(args):
         name=args.wandb_run_name,
         config=vars(args),
     )
+    wandb.define_metric("tokens_seen")
+    wandb.define_metric("train/*", step_metric="tokens_seen")
+    wandb.define_metric("val/*", step_metric="tokens_seen")
 
     # Tokenize txt files to npy if needed, then load
     # Auto-swap .txt -> .json if the user passed the plain-text variants
@@ -190,7 +193,8 @@ def train(args):
                 f"step {step:6d}/{args.max_iters} | loss {loss.item():.4f} | lr {lr:.2e} | "
                 f"{tokens_per_sec:.0f} tok/s"
             )
-            wandb.log({"train/loss": loss.item(), "train/lr": lr, "train/tokens_per_sec": tokens_per_sec, "wallclock": wallclock}, step=step)
+            tokens_seen = step * args.batch_size * args.context_length
+            wandb.log({"train/loss": loss.item(), "train/lr": lr, "train/tokens_per_sec": tokens_per_sec, "wallclock": wallclock, "tokens_seen": tokens_seen}, step=step)
             t0 = time.time()
 
         # Validation
@@ -198,7 +202,8 @@ def train(args):
             val_loss = estimate_val_loss(model, val_data, args.batch_size, args.context_length, device)
             wallclock = time.time() - train_start_time
             tqdm.write(f"  --> val loss {val_loss:.4f} at step {step}")
-            wandb.log({"val/loss": val_loss, "wallclock": wallclock}, step=step)
+            tokens_seen = step * args.batch_size * args.context_length
+            wandb.log({"val/loss": val_loss, "wallclock": wallclock, "tokens_seen": tokens_seen}, step=step)
 
         # Checkpointing
         if step > 0 and step % args.checkpoint_interval == 0:
