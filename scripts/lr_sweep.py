@@ -23,8 +23,8 @@ import subprocess
 import sys
 
 
-# Log-scale LR grid: 1e-4 to 3e-3
-SWEEP_LRS = [1e-4, 3e-4, 6e-4, 1e-3, 3e-3]
+# Log-scale LR grid: 1e-4 to 1e-2
+SWEEP_LRS = [1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 1e-2]
 
 # Short run to compare learning curves quickly
 SWEEP_ITERS = 5000
@@ -50,20 +50,18 @@ MODEL_DEFAULTS = [
 ]
 
 
-def run_training(extra_args: list[str], dry_run: bool = False):
-    cmd = [sys.executable, "-m", "cs336_basics.training_together"] + extra_args
-    print("\n" + "=" * 70)
-    print("Running:", " ".join(cmd))
-    print("=" * 70)
-    if not dry_run:
-        subprocess.run(cmd, check=True)
+def build_cmd(extra_args: list[str]) -> list[str]:
+    return [sys.executable, "-m", "cs336_basics.training_together"] + extra_args
 
 
 def sweep(args):
-    for lr in SWEEP_LRS:
+    """Launch all LR runs in parallel, each pinned to its own CUDA device."""
+    procs = []
+    for i, lr in enumerate(SWEEP_LRS):
         lr_min = lr / 10
         run_name = f"lr_sweep_lr{lr:.0e}"
         checkpoint_dir = f"output/checkpoints/lr_sweep/lr{lr:.0e}"
+        device = f"cuda:{i}" if not args.cpu else "cpu"
         extra = [
             "--train_data", args.train_data,
             "--val_data", args.val_data,
@@ -78,10 +76,26 @@ def sweep(args):
             "--log_interval", str(SWEEP_LOG_INTERVAL),
             "--checkpoint_interval", str(SWEEP_ITERS),
             "--checkpoint_dir", checkpoint_dir,
+            "--device", device,
             "--wandb_project", args.wandb_project,
             "--wandb_run_name", run_name,
         ] + MODEL_DEFAULTS
-        run_training(extra, dry_run=args.dry_run)
+
+        cmd = build_cmd(extra)
+        print(f"Launching (gpu {i}): lr={lr:.0e}  cmd: {' '.join(cmd)}")
+        if not args.dry_run:
+            log_file = open(f"lr_sweep_lr{lr:.0e}.log", "w")
+            procs.append((lr, subprocess.Popen(cmd, stdout=log_file, stderr=log_file)))
+        else:
+            procs.append((lr, None))
+
+    if not args.dry_run:
+        print(f"\nAll {len(procs)} runs launched. Waiting for completion...")
+        for lr, proc in procs:
+            retcode = proc.wait()
+            status = "OK" if retcode == 0 else f"FAILED (code {retcode})"
+            print(f"  lr={lr:.0e}: {status}")
+        print("Sweep complete. Check lr_sweep_lr*.log for per-run output.")
 
 
 def full(args):
@@ -123,6 +137,7 @@ def main():
                         help="LR to use for the full run (required when --phase full)")
     parser.add_argument("--wandb_project", type=str, default="cs336-lm-lr-sweep")
     parser.add_argument("--dry_run", action="store_true", help="Print commands without running")
+    parser.add_argument("--cpu", action="store_true", help="Use CPU instead of CUDA (for testing)")
     args = parser.parse_args()
 
     if args.phase == "sweep":
