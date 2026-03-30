@@ -1,12 +1,14 @@
 """
-RMSNorm ablation sweep.
+Pre-norm vs Post-norm ablation.
 
-Runs two experiments:
-  1. No RMSNorm at the previously-optimal LR (default 1e-3)
-  2. No RMSNorm at lower LRs to find a stable setting
+Runs:
+  1. Pre-norm  at the optimal LR (baseline)
+  2. Post-norm at the optimal LR
+  3. Post-norm at lower LRs to find a stable setting (post-norm is known to be
+     harder to train at high LRs)
 
 Usage:
-    python scripts/norm_ablation.py \
+    python scripts/pre_norm_ablation.py \
         --train_data data/tinystories/TinyStoriesV2-GPT4-train.txt \
         --val_data data/tinystories/TinyStoriesV2-GPT4-valid.txt \
         --vocab_filepath output/tinystories_bpe/vocab.json \
@@ -18,8 +20,8 @@ import argparse
 import subprocess
 
 
-# LRs to try for the no-norm ablation: optimal + lower candidates
-ABLATION_LRS_LOWER = [3e-4, 1e-4, 3e-5]
+# Lower LRs to try for post-norm if the optimal LR diverges
+POST_NORM_LOWER_LRS = [1e-3, 3e-4, 1e-4]
 
 SWEEP_ITERS = 5000
 SWEEP_VAL_INTERVAL = 500
@@ -42,10 +44,10 @@ def build_cmd(extra_args):
     return ["uv", "run", "python", "-m", "cs336_basics.training_together"] + extra_args
 
 
-def run_experiment(lr, tag, args, use_rmsnorm=False):
+def run_experiment(lr, tag, args, post_norm=False):
     lr_min = lr / 10
-    run_name = f"norm_ablation_{tag}_lr{lr:.0e}"
-    checkpoint_dir = f"output/checkpoints/norm_ablation/{tag}_lr{lr:.0e}"
+    run_name = f"pre_norm_ablation_{tag}_lr{lr:.0e}"
+    checkpoint_dir = f"output/checkpoints/pre_norm_ablation/{tag}_lr{lr:.0e}"
     extra = [
         "--train_data", args.train_data,
         "--val_data", args.val_data,
@@ -64,8 +66,8 @@ def run_experiment(lr, tag, args, use_rmsnorm=False):
         "--wandb_run_name", run_name,
     ] + MODEL_DEFAULTS
 
-    if not use_rmsnorm:
-        extra.append("--no_rmsnorm")
+    if post_norm:
+        extra.append("--post_norm")
 
     cmd = build_cmd(extra)
     print(f"\n[{tag}] lr={lr:.0e}  cmd:\n  {' '.join(cmd)}")
@@ -74,26 +76,30 @@ def run_experiment(lr, tag, args, use_rmsnorm=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="RMSNorm ablation sweep")
+    parser = argparse.ArgumentParser(description="Pre-norm vs Post-norm ablation")
     parser.add_argument("--train_data", required=True)
     parser.add_argument("--val_data", required=True)
     parser.add_argument("--vocab_filepath", required=True)
     parser.add_argument("--merges_filepath", required=True)
     parser.add_argument("--data_cache_dir", default="/tmp/ts_cache")
-    parser.add_argument("--optimal_lr", type=float, default=1e-3,
-                        help="Previously optimal LR (with RMSNorm)")
-    parser.add_argument("--wandb_project", default="cs336-norm-ablation")
+    parser.add_argument("--optimal_lr", type=float, default=3e-3,
+                        help="Previously optimal LR (with pre-norm)")
+    parser.add_argument("--wandb_project", default="cs336-pre-norm-ablation")
     parser.add_argument("--dry_run", action="store_true")
     args = parser.parse_args()
 
-    # 1. No-norm at the optimal LR — expect instability
-    print("=== Run 1: No RMSNorm at optimal LR ===")
-    run_experiment(args.optimal_lr, "no_norm_optimal", args, use_rmsnorm=False)
+    # 1. Pre-norm baseline at optimal LR
+    print("=== Run 1: Pre-norm (baseline) at optimal LR ===")
+    run_experiment(args.optimal_lr, "pre_norm", args, post_norm=False)
 
-    # 2. No-norm at lower LRs — search for stability
-    print("\n=== Run 2: No RMSNorm at lower LRs ===")
-    for lr in ABLATION_LRS_LOWER:
-        run_experiment(lr, "no_norm_lower", args, use_rmsnorm=False)
+    # 2. Post-norm at the same optimal LR — may diverge
+    print("\n=== Run 2: Post-norm at optimal LR ===")
+    run_experiment(args.optimal_lr, "post_norm_optimal", args, post_norm=True)
+
+    # 3. Post-norm at lower LRs — search for a stable setting
+    print("\n=== Run 3: Post-norm at lower LRs ===")
+    for lr in POST_NORM_LOWER_LRS:
+        run_experiment(lr, "post_norm_lower", args, post_norm=True)
 
     print("\nAblation complete. Compare runs in W&B under project:", args.wandb_project)
 

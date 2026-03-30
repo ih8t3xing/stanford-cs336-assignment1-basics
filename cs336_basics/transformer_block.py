@@ -16,10 +16,12 @@ class TransformerBlock(nn.Module):
         theta: float = 10000.0,
         max_seq_len: int = 2048,
         use_rmsnorm: bool = True,
+        post_norm: bool = False,
         device=None,
         dtype=None,
     ):
         super().__init__()
+        self.post_norm = post_norm
         rope = RoPE(theta, d_model // num_heads, max_seq_len, device=device)
         if use_rmsnorm:
             self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
@@ -32,14 +34,17 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Pre-norm transformer block:
-            y = x + Attention(RMSNorm(x))
-            z = y + FFN(RMSNorm(y))
+        Pre-norm:  z = x + Attention(RMSNorm(x));  y = z + FFN(RMSNorm(z))
+        Post-norm: z = RMSNorm(x + Attention(x));  y = RMSNorm(z + FFN(z))
         Args:
             x: (batch, seq_len, d_model)
         Returns:
             (batch, seq_len, d_model)
         """
-        x = x + self.attn(self.ln1(x))
-        x = x + self.ffn(self.ln2(x))
+        if self.post_norm:
+            x = self.ln1(x + self.attn(x))
+            x = self.ln2(x + self.ffn(x))
+        else:
+            x = x + self.attn(self.ln1(x))
+            x = x + self.ffn(self.ln2(x))
         return x

@@ -16,16 +16,18 @@ class TransformerLM(nn.Module):
         d_ff: int,
         rope_theta: float,
         use_rmsnorm: bool = True,
+        post_norm: bool = False,
         device=None,
         dtype=None,
     ):
         super().__init__()
         self.token_embeddings = nn.Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList([
-            TransformerBlock(d_model, num_heads, d_ff, theta=rope_theta, max_seq_len=context_length, use_rmsnorm=use_rmsnorm, device=device, dtype=dtype)
+            TransformerBlock(d_model, num_heads, d_ff, theta=rope_theta, max_seq_len=context_length, use_rmsnorm=use_rmsnorm, post_norm=post_norm, device=device, dtype=dtype)
             for _ in range(num_layers)
         ])
-        self.ln_final = RMSNorm(d_model, device=device, dtype=dtype) if use_rmsnorm else nn.Identity()
+        # post-norm blocks already normalise their output; no extra norm needed after the stack
+        self.ln_final = RMSNorm(d_model, device=device, dtype=dtype) if (use_rmsnorm and not post_norm) else nn.Identity()
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
