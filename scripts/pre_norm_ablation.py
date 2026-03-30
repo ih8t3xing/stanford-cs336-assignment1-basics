@@ -23,9 +23,15 @@ import subprocess
 # Lower LRs to try for post-norm if the optimal LR diverges
 POST_NORM_LOWER_LRS = [1e-3, 3e-4, 1e-4]
 
-SWEEP_ITERS = 5000
-SWEEP_VAL_INTERVAL = 500
-SWEEP_LOG_INTERVAL = 100
+# SWEEP_ITERS = 5000
+# SWEEP_VAL_INTERVAL = 500
+# SWEEP_LOG_INTERVAL = 100
+# SWEEP_CKPT_INTERVAL = 1000  # save mid-run so we can resume if a run crashes
+
+SWEEP_ITERS = 2000
+SWEEP_VAL_INTERVAL = 200
+SWEEP_LOG_INTERVAL = 50
+SWEEP_CKPT_INTERVAL = 1000
 
 MODEL_DEFAULTS = [
     "--vocab_size", "10000",
@@ -60,7 +66,7 @@ def run_experiment(lr, tag, args, post_norm=False):
         "--warmup_iters", "200",
         "--val_interval", str(SWEEP_VAL_INTERVAL),
         "--log_interval", str(SWEEP_LOG_INTERVAL),
-        "--checkpoint_interval", str(SWEEP_ITERS),
+        "--checkpoint_interval", str(SWEEP_CKPT_INTERVAL),
         "--checkpoint_dir", checkpoint_dir,
         "--wandb_project", args.wandb_project,
         "--wandb_run_name", run_name,
