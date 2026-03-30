@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from cs336_basics.linear import Linear
@@ -8,13 +9,15 @@ from cs336_basics.scaled_dot_product_attention import scaled_dot_product_attenti
 
 
 class CausalMultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, rope: RoPE | None = None, device=None, dtype=None):
+    def __init__(self, d_model: int, num_heads: int, rope: RoPE | None = None,
+                 use_flash: bool = False, device=None, dtype=None):
         super().__init__()
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_k = d_model // num_heads
         self.rope = rope
+        self.use_flash = use_flash
 
         self.q_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.k_proj = Linear(d_model, d_model, device=device, dtype=dtype)
@@ -46,11 +49,13 @@ class CausalMultiHeadSelfAttention(nn.Module):
             Q = self.rope(Q, token_positions)
             K = self.rope(K, token_positions)
 
-        # Causal mask: lower-triangular, True = keep
-        mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device))
-
-        # Attention: (..., h, seq_len, d_k)
-        attn_out = scaled_dot_product_attention(Q, K, V, mask=mask)
+        if self.use_flash:
+            # Uses FlashAttention kernel when available (CUDA), falls back to efficient impl
+            attn_out = F.scaled_dot_product_attention(Q, K, V, is_causal=True)
+        else:
+            # Causal mask: lower-triangular, True = keep
+            mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device))
+            attn_out = scaled_dot_product_attention(Q, K, V, mask=mask)
 
         # Merge heads: (..., seq_len, d_model)
         attn_out = attn_out.transpose(-2, -3).contiguous().view(*batch, seq_len, self.d_model)

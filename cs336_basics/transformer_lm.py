@@ -19,18 +19,25 @@ class TransformerLM(nn.Module):
         post_norm: bool = False,
         use_rope: bool = True,
         use_swiglu: bool = True,
+        use_flash: bool = False,
+        tie_weights: bool = False,
         device=None,
         dtype=None,
     ):
         super().__init__()
         self.token_embeddings = nn.Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList([
-            TransformerBlock(d_model, num_heads, d_ff, theta=rope_theta, max_seq_len=context_length, use_rmsnorm=use_rmsnorm, post_norm=post_norm, use_rope=use_rope, use_swiglu=use_swiglu, device=device, dtype=dtype)
+            TransformerBlock(d_model, num_heads, d_ff, theta=rope_theta, max_seq_len=context_length, use_rmsnorm=use_rmsnorm, post_norm=post_norm, use_rope=use_rope, use_swiglu=use_swiglu, use_flash=use_flash, device=device, dtype=dtype)
             for _ in range(num_layers)
         ])
         # post-norm blocks already normalise their output; no extra norm needed after the stack
         self.ln_final = RMSNorm(d_model, device=device, dtype=dtype) if (use_rmsnorm and not post_norm) else nn.Identity()
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False, device=device, dtype=dtype)
+
+        if tie_weights:
+            # Share embedding and LM head weights; use smaller init std to keep logits stable
+            nn.init.normal_(self.token_embeddings.weight, mean=0.0, std=0.02)
+            self.lm_head.weight = self.token_embeddings.weight
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

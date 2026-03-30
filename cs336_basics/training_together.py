@@ -136,10 +136,16 @@ def train(args):
         post_norm=args.post_norm,
         use_rope=not args.no_rope,
         use_swiglu=not args.no_swiglu,
+        use_flash=args.use_flash,
+        tie_weights=args.tie_weights,
         device=device,
     )
     num_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {num_params:,}")
+
+    if args.compile:
+        print("Compiling model with torch.compile ...")
+        model = torch.compile(model)
 
     # Optimizer
     optimizer = AdamW(
@@ -177,8 +183,9 @@ def train(args):
 
         # Forward + backward
         x, y = get_batch(train_data, args.batch_size, args.context_length, device)
-        logits = model(x)
-        loss = cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+        with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=args.bf16):
+            logits = model(x)
+            loss = cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
 
         optimizer.zero_grad()
         loss.backward()
@@ -244,6 +251,10 @@ def main():
     parser.add_argument("--post_norm", action="store_true", help="Use post-norm instead of pre-norm")
     parser.add_argument("--no_rope", action="store_true", help="Disable RoPE position embeddings (NoPE ablation)")
     parser.add_argument("--no_swiglu", action="store_true", help="Use SiLU FFN without gating instead of SwiGLU")
+    parser.add_argument("--use_flash", action="store_true", help="Use F.scaled_dot_product_attention (FlashAttention)")
+    parser.add_argument("--tie_weights", action="store_true", help="Tie input embedding and LM head weights")
+    parser.add_argument("--bf16", action="store_true", help="Use bfloat16 autocast for forward pass")
+    parser.add_argument("--compile", action="store_true", help="Compile model with torch.compile")
 
     # Training
     parser.add_argument("--max_iters", type=int, default=40000)
