@@ -11,7 +11,7 @@ Key optimizations over the baseline 25M TinyStories model:
   - Chinchilla-informed scale: ~2B tokens budget at this throughput
 
 Usage:
-    python scripts/leaderboard.py
+    wo
     python scripts/leaderboard.py --max_iters 30000  # shorter test run
     python scripts/leaderboard.py --dry_run
 """
@@ -125,10 +125,7 @@ def main():
     os.makedirs(args.data_cache_dir, exist_ok=True)
     os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    print("=== Step 1: Tokenize OWT ===")
-    tokenize_owt(args)
-
-    print("\n=== Step 2: Train ===")
+    print("=== Train (training_together tokenizes automatically with multiprocessing) ===")
     train(args)
 
     ckpt = os.path.join(args.checkpoint_dir, f"ckpt_{args.max_iters:07d}_final.pt")

@@ -110,10 +110,7 @@ def main():
     os.makedirs(args.data_cache_dir, exist_ok=True)
     os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    print("=== Step 1: Tokenize OWT ===")
-    tokenize_owt(args)
-
-    print("\n=== Step 2: Train on OWT ===")
+    print("=== Train on OWT (training_together tokenizes automatically with multiprocessing) ===")
     train_owt(args)
 
     print("\nDone. Checkpoint dir:", args.checkpoint_dir)
