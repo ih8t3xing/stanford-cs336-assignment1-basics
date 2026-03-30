@@ -3,9 +3,9 @@ Generate text from a trained TransformerLM checkpoint.
 
 Usage:
     uv run python scripts/generate.py \
-        --checkpoint output/checkpoints/tinystories_valid/ckpt_0000200_final.pt \
-        --vocab_filepath output/tinystories_bpe_valid/vocab.json \
-        --merges_filepath output/tinystories_bpe_valid/merges.json \
+        --checkpoint output/checkpoints/lr_sweep/lr3e-03//ckpt_0005000_final.pt \
+        --vocab_filepath output/tinystories_bpe/vocab.json \
+        --merges_filepath output/tinystories_bpe/merges.json \
         --prompt "Once upon a time" \
         --max_new_tokens 300 \
         --temperature 0.8 \
