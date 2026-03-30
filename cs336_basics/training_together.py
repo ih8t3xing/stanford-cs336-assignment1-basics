@@ -14,6 +14,7 @@ Usage:
 import argparse
 import os
 import time
+from multiprocessing import Pool, cpu_count
 
 import numpy as np
 import torch
@@ -30,12 +31,36 @@ from cs336_basics.tokenizer import Tokenizer
 from cs336_basics.transformer_lm import TransformerLM
 
 
-def tokenize_to_npy(txt_path: str, tokenizer: Tokenizer, npy_path: str) -> np.memmap:
-    """Tokenize a txt file and save as uint16 npy, return memmap."""
+def _tokenize_chunk(args):
+    """Worker: tokenize a chunk of lines, return flat list of token IDs."""
+    lines, vocab_filepath, merges_filepath = args
+    tok = Tokenizer.from_files(vocab_filepath, merges_filepath)
+    return list(tok.encode_iterable(lines))
+
+
+def tokenize_to_npy(txt_path: str, tokenizer: Tokenizer, npy_path: str,
+                    vocab_filepath: str = None, merges_filepath: str = None) -> np.memmap:
+    """Tokenize a txt file and save as uint16 npy, return memmap.
+
+    Uses multiprocessing when vocab/merges paths are provided; falls back to
+    single-threaded otherwise.
+    """
     print(f"Tokenizing {txt_path} -> {npy_path} ...")
     with open(txt_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
-    ids = list(tokenizer.encode_iterable(lines))
+
+    if vocab_filepath and merges_filepath:
+        n_workers = cpu_count()
+        chunk_size = max(1, len(lines) // n_workers)
+        chunks = [lines[i:i + chunk_size] for i in range(0, len(lines), chunk_size)]
+        worker_args = [(chunk, vocab_filepath, merges_filepath) for chunk in chunks]
+        print(f"  Using {len(chunks)} workers for {len(lines):,} lines ...")
+        with Pool(n_workers) as pool:
+            results = pool.map(_tokenize_chunk, worker_args)
+        ids = [tok for chunk in results for tok in chunk]
+    else:
+        ids = list(tokenizer.encode_iterable(lines))
+
     arr = np.array(ids, dtype=np.uint16)
     np.save(npy_path, arr)
     print(f"  Saved {len(arr):,} tokens to {npy_path}")
@@ -84,7 +109,9 @@ def train(args):
         os.makedirs(cache_dir, exist_ok=True)
         npy_path = os.path.join(cache_dir, basename)
         if not os.path.exists(npy_path):
-            tokenize_to_npy(txt_path, tokenizer, npy_path)
+            tokenize_to_npy(txt_path, tokenizer, npy_path,
+                            vocab_filepath=_to_json(args.vocab_filepath),
+                            merges_filepath=_to_json(args.merges_filepath))
         else:
             print(f"Found cached {npy_path}, skipping tokenization.")
         return np.memmap(npy_path, dtype=np.uint16, mode="r")
